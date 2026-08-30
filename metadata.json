@@ -1,0 +1,7 @@
+{
+  "name": "CollegeCompass",
+  "description": "Production-grade college discovery, comparison, and rank predictor platform with verified placements, cutoffs, and campus insights.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

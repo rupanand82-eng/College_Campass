@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "College": {
+      "title": "College",
+      "description": "Represents an institution of higher education with fees, ratings, and location",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 200 },
+        "slug": { "type": "string", "maxLength": 100 },
+        "city": { "type": "string", "maxLength": 100 },
+        "state": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["Government", "Private", "Deemed"] },
+        "established": { "type": "integer" },
+        "feesPerYear": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "integer" },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "overview": { "type": "string", "maxLength": 5000 },
+        "streams": { "type": "array" }
+      },
+      "required": ["name", "slug", "city", "state", "type", "feesPerYear", "rating"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Degree course offered by a college",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 200 },
+        "degree": { "type": "string", "maxLength": 50 },
+        "durationYears": { "type": "number" },
+        "feesPerYear": { "type": "number" },
+        "seats": { "type": "integer" },
+        "eligibility": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["name", "degree", "durationYears", "feesPerYear"]
+    },
+    "PlacementYear": {
+      "title": "PlacementYear",
+      "description": "Annual placement statistics for a college",
+      "type": "object",
+      "properties": {
+        "year": { "type": "integer" },
+        "avgPackageLPA": { "type": "number" },
+        "medianPackageLPA": { "type": "number" },
+        "highestPackageLPA": { "type": "number" },
+        "placementPercentage": { "type": "number" },
+        "topRecruiters": { "type": "array" }
+      },
+      "required": ["year", "avgPackageLPA", "highestPackageLPA", "placementPercentage"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Student or alumni review of a college",
+      "type": "object",
+      "properties": {
+        "authorName": { "type": "string", "maxLength": 100 },
+        "rating": { "type": "number" },
+        "title": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 3000 },
+        "course": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["authorName", "rating", "title", "body"]
+    },
+    "PredictorCutoff": {
+      "title": "PredictorCutoff",
+      "description": "Historical cutoff ranks for various entrance exams",
+      "type": "object",
+      "properties": {
+        "collegeId": { "type": "string", "maxLength": 128 },
+        "exam": { "type": "string", "enum": ["JEE Main", "JEE Advanced", "NEET", "CAT"] },
+        "category": { "type": "string", "enum": ["General", "OBC", "SC", "ST", "EWS"] },
+        "year": { "type": "integer" },
+        "closingRank": { "type": "integer" },
+        "course": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["collegeId", "exam", "category", "year", "closingRank", "course"]
+    },
+    "SavedItems": {
+      "title": "SavedItems",
+      "description": "Saved colleges and comparisons for a user session",
+      "type": "object",
+      "properties": {
+        "savedColleges": { "type": "array" },
+        "savedComparisons": { "type": "array" }
+      },
+      "required": ["savedColleges", "savedComparisons"]
+    }
+  },
+  "firestore": {
+    "/colleges/{collegeId}": {
+      "schema": { "$ref": "#/entities/College" },
+      "description": "Top-level collection for all colleges in India"
+    },
+    "/colleges/{collegeId}/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "Sub-collection of academic courses per college"
+    },
+    "/colleges/{collegeId}/placements/{year}": {
+      "schema": { "$ref": "#/entities/PlacementYear" },
+      "description": "Sub-collection of placement records by year"
+    },
+    "/colleges/{collegeId}/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Sub-collection of student/alumni reviews"
+    },
+    "/predictorCutoffs/{cutoffId}": {
+      "schema": { "$ref": "#/entities/PredictorCutoff" },
+      "description": "Collection of entrance exam cutoff ranks"
+    },
+    "/savedItems/{sessionId}": {
+      "schema": { "$ref": "#/entities/SavedItems" },
+      "description": "Session-scoped saved colleges and comparisons"
+    }
+  }
+}

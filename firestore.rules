@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Colleges Collection
+    match /colleges/{collegeId} {
+      allow get: if isValidId(collegeId);
+      allow list: if true; // Public directory read
+      allow create, update, delete: if false; // Read-only from client, managed via admin backend
+
+      // Courses Subcollection
+      match /courses/{courseId} {
+        allow get: if isValidId(collegeId) && isValidId(courseId);
+        allow list: if isValidId(collegeId);
+        allow create, update, delete: if false;
+      }
+
+      // Placements Subcollection
+      match /placements/{yearId} {
+        allow get: if isValidId(collegeId) && isValidId(yearId);
+        allow list: if isValidId(collegeId);
+        allow create, update, delete: if false;
+      }
+
+      // Reviews Subcollection
+      match /reviews/{reviewId} {
+        allow get: if isValidId(collegeId) && isValidId(reviewId);
+        allow list: if isValidId(collegeId);
+        allow create, update, delete: if false; // Reviews handled through API endpoints for validation
+      }
+    }
+
+    // Predictor Cutoffs Collection
+    match /predictorCutoffs/{cutoffId} {
+      allow get: if isValidId(cutoffId);
+      allow list: if true;
+      allow create, update, delete: if false;
+    }
+
+    // Saved Items Collection (Session/User scoped)
+    match /savedItems/{sessionId} {
+      allow get, list, write: if false; // All saved item mutations proxied through secure server-side session API
+    }
+  }
+}
