@@ -170,6 +170,42 @@ The backend provides clean, strongly typed REST endpoints:
 
 ---
 
+## ▲ Deploying to Vercel
+
+CollegeCompass is pre-configured and optimized for 1-click deployment to **Vercel** with full support for both the React/Vite single-page app and the Express serverless API.
+
+### Configuration Included
+- **`vercel.json`**: Pre-configures the build command (`vite build`), static output directory (`dist`), and API routing rewrites.
+- **`api/index.ts`**: Serverless function handler routing all `/api/*` requests to the Express application.
+- **SPA Routing**: Non-API routes are rewritten to `/index.html` to allow client-side routing to function seamlessly without 404 errors.
+
+### Option 1: Deploy via Vercel Web Dashboard (Recommended)
+1. Push this repository to **GitHub** (or GitLab/Bitbucket).
+2. Go to [vercel.com/new](https://vercel.com/new) and log in.
+3. Import your repository.
+4. Vercel will automatically detect the project settings from `vercel.json`:
+   - **Framework Preset**: Vite
+   - **Build Command**: `vite build`
+   - **Output Directory**: `dist`
+5. Click **Deploy**. Your app and serverless API will be live in seconds!
+
+### Option 2: Deploy via Vercel CLI
+1. Install the Vercel CLI globally if you haven't already:
+   ```bash
+   npm i -g vercel
+   ```
+2. Run the deployment command from the project root:
+   ```bash
+   vercel
+   ```
+3. Follow the CLI prompts (accept defaults).
+4. For production deployment:
+   ```bash
+   vercel --prod
+   ```
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License.
