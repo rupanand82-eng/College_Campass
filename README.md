@@ -174,18 +174,17 @@ The backend provides clean, strongly typed REST endpoints:
 
 CollegeCompass is pre-configured and optimized for 1-click deployment to **Vercel** with full support for both the React/Vite single-page app and the Express serverless API.
 
-### Configuration Included
-- **`vercel.json`**: Pre-configures the build command (`vite build`), static output directory (`dist`), and API routing rewrites.
-- **`api/index.ts`**: Serverless function handler routing all `/api/*` requests to the Express application.
-- **SPA Routing**: Non-API routes are rewritten to `/index.html` to allow client-side routing to function seamlessly without 404 errors.
+### Architecture & Vercel Optimizations
+- **Pre-bundled Serverless Function (`api/index.js`)**: The Express backend and seed data are bundled into a standalone ESM file during `npm run build` using `esbuild`. This resolves all Node.js ES module resolution requirements and avoids serverless runtime crashes.
+- **`vercel.json`**: Pre-configures the build command (`npm run build`), output directory (`dist`), and rewrites `/api/*` requests directly to `/api/index.js` while serving `/index.html` for SPA navigation.
+- **Resilient Fallback Engine**: If any serverless function cold-start or proxy issue occurs, the client automatically and transparently switches to the local in-memory dataset, ensuring the UI is never interrupted.
 
 ### Option 1: Deploy via Vercel Web Dashboard (Recommended)
 1. Push this repository to **GitHub** (or GitLab/Bitbucket).
 2. Go to [vercel.com/new](https://vercel.com/new) and log in.
 3. Import your repository.
-4. Vercel will automatically detect the project settings from `vercel.json`:
-   - **Framework Preset**: Vite
-   - **Build Command**: `vite build`
+4. Vercel automatically detects the project settings from `vercel.json`:
+   - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
 5. Click **Deploy**. Your app and serverless API will be live in seconds!
 

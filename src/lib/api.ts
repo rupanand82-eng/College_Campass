@@ -9,6 +9,7 @@ import {
   SavedComparison,
   ApiResponse,
 } from "../types";
+import { localStore } from "./localStore";
 
 export interface CollegesResponse {
   colleges: CollegeSummary[];
@@ -58,17 +59,32 @@ export interface FilterMetaResponse {
   totalColleges: number;
 }
 
-// Base Fetcher Helper with robust error parsing
+// Resilient Fetcher with safe text-before-parse handling to prevent "Unexpected token 'A'" syntax errors
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options?.headers || {}),
+      },
+    });
+  } catch (netErr: any) {
+    throw new Error(netErr?.message || "Network connection error");
+  }
 
-  const json: ApiResponse<T> = await res.json();
+  const rawText = await res.text();
+  let json: ApiResponse<T> | null = null;
+  try {
+    json = JSON.parse(rawText);
+  } catch (_parseErr) {
+    // If the server/Vercel returned plain text (e.g. "A server error occurred: FUNCTION_INVOCATION_FAILED")
+    // or HTML error page, surface it cleanly without blowing up with a JSON parse SyntaxError
+    const snippet = rawText ? rawText.slice(0, 180).trim() : `HTTP ${res.status}`;
+    throw new Error(`Server returned non-JSON response (${res.status}): ${snippet}`);
+  }
+
   if (!res.ok || json.error) {
     throw new Error(json.error?.message || `API request failed with status ${res.status}`);
   }
@@ -77,88 +93,151 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  // Fetch colleges list with query filters & pagination
+  // Fetch colleges list with query filters & pagination (with automatic client fallback)
   getColleges: async (params: Record<string, any> = {}): Promise<CollegesResponse> => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== "" && val !== "all") {
-        query.append(key, String(val));
-      }
-    });
-    return fetchApi<CollegesResponse>(`/api/colleges?${query.toString()}`);
+    try {
+      const query = new URLSearchParams();
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== "" && val !== "all") {
+          query.append(key, String(val));
+        }
+      });
+      return await fetchApi<CollegesResponse>(`/api/colleges?${query.toString()}`);
+    } catch (err) {
+      console.warn("API error fetching colleges, activating local fallback:", err);
+      return localStore.getColleges(params);
+    }
   },
 
-  // Fetch filter metadata
+  // Fetch filter metadata (with automatic client fallback)
   getFilterMeta: async (): Promise<FilterMetaResponse> => {
-    return fetchApi<FilterMetaResponse>("/api/colleges/meta/filters");
+    try {
+      return await fetchApi<FilterMetaResponse>("/api/colleges/meta/filters");
+    } catch (err) {
+      console.warn("API error fetching filter metadata, activating local fallback:", err);
+      return localStore.getFiltersMetadata();
+    }
   },
 
-  // Fetch full college details by slug
+  // Fetch full college details by slug (with automatic client fallback)
   getCollegeDetail: async (slug: string): Promise<CollegeDetailResponse> => {
-    return fetchApi<CollegeDetailResponse>(`/api/colleges/${slug}`);
+    try {
+      return await fetchApi<CollegeDetailResponse>(`/api/colleges/${slug}`);
+    } catch (err) {
+      console.warn(`API error fetching details for "${slug}", activating local fallback:`, err);
+      const fallback = localStore.getCollegeDetail(slug);
+      if (!fallback) {
+        throw new Error(`College with identifier "${slug}" not found`);
+      }
+      return fallback;
+    }
   },
 
-  // Fetch paginated reviews
+  // Fetch paginated reviews (with automatic client fallback)
   getReviews: async (slug: string, cursor?: string, limit = 10): Promise<ReviewsResponse> => {
-    const query = new URLSearchParams();
-    if (cursor) query.append("cursor", cursor);
-    if (limit) query.append("limit", String(limit));
-    return fetchApi<ReviewsResponse>(`/api/colleges/${slug}/reviews?${query.toString()}`);
+    try {
+      const query = new URLSearchParams();
+      if (cursor) query.append("cursor", cursor);
+      if (limit) query.append("limit", String(limit));
+      return await fetchApi<ReviewsResponse>(`/api/colleges/${slug}/reviews?${query.toString()}`);
+    } catch (err) {
+      console.warn(`API error fetching reviews for "${slug}", activating local fallback:`, err);
+      const fallback = localStore.getReviews(slug, cursor, limit);
+      if (!fallback) {
+        return { reviews: [], nextCursor: null, totalReviews: 0, ratingDistribution: {} };
+      }
+      return fallback;
+    }
   },
 
-  // Compare 2-3 colleges
+  // Compare 2-3 colleges (with automatic client fallback)
   compareColleges: async (collegeIds: string[]): Promise<NormalizedComparisonCollege[]> => {
-    return fetchApi<NormalizedComparisonCollege[]>("/api/compare", {
-      method: "POST",
-      body: JSON.stringify({ collegeIds }),
-    });
+    try {
+      return await fetchApi<NormalizedComparisonCollege[]>("/api/compare", {
+        method: "POST",
+        body: JSON.stringify({ collegeIds }),
+      });
+    } catch (err) {
+      console.warn("API error comparing colleges, activating local fallback:", err);
+      return localStore.compareColleges(collegeIds);
+    }
   },
 
-  // Predict colleges based on rank and exam
+  // Predict colleges based on rank and exam (with automatic client fallback)
   predictColleges: async (body: {
     exam: string;
     rank: number;
     category: string;
     year?: number;
   }): Promise<PredictorResponse> => {
-    return fetchApi<PredictorResponse>("/api/predictor", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+    try {
+      return await fetchApi<PredictorResponse>("/api/predictor", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      console.warn("API error running predictor, activating local fallback:", err);
+      return localStore.predictColleges(body);
+    }
   },
 
-  // Get saved items for session
+  // Get saved items for session (with local storage fallback)
   getSavedItems: async (): Promise<SavedResponse> => {
-    return fetchApi<SavedResponse>("/api/saved");
+    try {
+      return await fetchApi<SavedResponse>("/api/saved");
+    } catch (err) {
+      console.warn("API error fetching saved items, using local storage:", err);
+      return localStore.getLocalSaved();
+    }
   },
 
-  // Save a college
+  // Save a college (with local storage fallback)
   saveCollege: async (collegeId: string) => {
-    return fetchApi("/api/saved/colleges", {
-      method: "POST",
-      body: JSON.stringify({ collegeId }),
-    });
+    try {
+      return await fetchApi("/api/saved/colleges", {
+        method: "POST",
+        body: JSON.stringify({ collegeId }),
+      });
+    } catch (err) {
+      console.warn("API error saving college, using local storage:", err);
+      return localStore.saveLocalCollege(collegeId);
+    }
   },
 
-  // Remove saved college
+  // Remove saved college (with local storage fallback)
   removeSavedCollege: async (collegeId: string) => {
-    return fetchApi(`/api/saved/colleges/${collegeId}`, {
-      method: "DELETE",
-    });
+    try {
+      return await fetchApi(`/api/saved/colleges/${collegeId}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.warn("API error removing saved college, using local storage:", err);
+      return localStore.removeLocalCollege(collegeId);
+    }
   },
 
-  // Save comparison
+  // Save comparison (with local storage fallback)
   saveComparison: async (body: { id?: string; collegeIds: string[]; title?: string }) => {
-    return fetchApi("/api/saved/comparisons", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+    try {
+      return await fetchApi("/api/saved/comparisons", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      console.warn("API error saving comparison, using local storage:", err);
+      return localStore.saveLocalComparison(body);
+    }
   },
 
-  // Remove saved comparison
+  // Remove saved comparison (with local storage fallback)
   removeSavedComparison: async (id: string) => {
-    return fetchApi(`/api/saved/comparisons/${id}`, {
-      method: "DELETE",
-    });
+    try {
+      return await fetchApi(`/api/saved/comparisons/${id}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.warn("API error removing comparison, using local storage:", err);
+      return localStore.removeLocalComparison(id);
+    }
   },
 };
